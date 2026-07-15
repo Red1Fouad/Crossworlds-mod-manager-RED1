@@ -56,6 +56,8 @@ namespace CrossworldsModManager
 
         public string? UsmapVersion { get; set; }
         public string? CustomUnionDirectory { get; set; }
+
+        public string GameAesKey { get; set; } = "0x1B5E5FF1646B6509B0EF29FF3890A95AFB91BF131DD335146FC237D667D5E798";
     }
 
     public class SerializableTheme

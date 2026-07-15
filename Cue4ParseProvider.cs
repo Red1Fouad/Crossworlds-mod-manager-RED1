@@ -18,7 +18,11 @@ namespace CrossworldsModManager
         private static DefaultFileProvider? _provider;
         private static readonly object _lock = new();
 
-        public static string GameAesKey { get; set; } = "0x1B5E5FF1646B6509B0EF29FF3890A95AFB91BF131DD335146FC237D667D5E798";
+        public static string GameAesKey
+        {
+            get => SettingsManager.Settings?.GameAesKey ?? "0x1B5E5FF1646B6509B0EF29FF3890A95AFB91BF131DD335146FC237D667D5E798";
+            set => SettingsManager.Settings.GameAesKey = value;
+        }
 
         public static EGame GameEngine { get; set; } = EGame.GAME_UE5_4;
 

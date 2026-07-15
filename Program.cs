@@ -16,7 +16,7 @@ namespace CrossworldsModManager
     static class Program
     {
         // Current application version.
-        public const string AppVersion = "1.1.4";
+        public const string AppVersion = "1.1.5";
 
         // Unique GUID for the application to identify the mutex and messages.
         private const string AppGuid = "c1a2b3d4-e5f6-7890-1234-567890abcdef"; // Please generate a new GUID for your app
