@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Tools\**" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="tools\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="EnsureToolsDir" AfterTargets="Build">
@@ -57,6 +57,8 @@
 
   <ItemGroup>
     <Compile Remove="Updater\**" />
+    <Compile Remove="tools\**" />
+    <Compile Remove="test\**" />
   </ItemGroup>
 
 </Project>

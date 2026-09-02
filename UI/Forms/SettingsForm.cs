@@ -171,6 +171,17 @@ namespace CrossworldsModManager
         private void cmbTheme_SelectedIndexChanged(object sender, EventArgs e)
         {
             UpdateCustomizeButtonVisibility();
+            if (cmbTheme.SelectedItem != null)
+            {
+                var themeName = cmbTheme.SelectedItem.ToString() ?? "Default";
+                ThemeManager.SetTheme(themeName);
+                ThemeManager.ApplyTheme(this);
+                foreach (Form form in Application.OpenForms)
+                {
+                    if (form != this)
+                        ThemeManager.ApplyTheme(form);
+                }
+            }
         }
 
         private void UpdateCustomizeButtonVisibility()

@@ -147,17 +147,18 @@ namespace CrossworldsModManager
             this.webDescription.ScriptErrorsSuppressed = true;
             this.webDescription.Navigating += (s, e) =>
             {
-                if (s is WebBrowser wb && wb.Document != null)
+                if (s is WebBrowser wb)
                 {
-                    try
+                    e.Cancel = true;
+                    var url = e.Url?.ToString();
+                    if (!string.IsNullOrEmpty(url) && url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                     {
-                        var activeElement = wb.Document.ActiveElement;
-                        if (activeElement != null && activeElement.TagName.Equals("A", StringComparison.OrdinalIgnoreCase))
+                        try
                         {
-                            e.Cancel = true;
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
                         }
+                        catch { }
                     }
-                    catch { }
                 }
             };
 

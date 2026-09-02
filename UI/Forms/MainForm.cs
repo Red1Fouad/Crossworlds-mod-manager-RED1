@@ -338,6 +338,13 @@ namespace CrossworldsModManager
         {
             SettingsManager.Load();
 
+            if (SettingsManager.SettingsWereReset)
+            {
+                CustomMessageBox.Show(
+                    "Your settings file was corrupted and has been reset to defaults.\n\nA backup of the corrupted file was saved alongside settings.json.",
+                    "Settings Reset", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
             MigrateToProfiles();
 
             if (string.IsNullOrWhiteSpace(SettingsManager.Settings.ModsDirectory))
@@ -681,9 +688,6 @@ namespace CrossworldsModManager
             }
 
             if (defaultsSet) SettingsManager.Save(); // Save the new default settings.
-
-            // Sort the view to bring enabled mods to the top, if the setting is enabled.
-            SortModsView();
 
             // Now that defaults are set, save the final state of enabled mods and their order.
             SaveModListState();
@@ -2311,12 +2315,8 @@ namespace CrossworldsModManager
                 modListView.Items[newIndex].Selected = true;
                 modListView.Focus();
 
-                // Sync _allModItems if not searching
-                if (string.IsNullOrWhiteSpace(txtSearch.Text))
-                {
-                    _allModItems.Clear();
-                    _allModItems.AddRange(modListView.Items.Cast<ListViewItem>());
-                }
+                _allModItems.Clear();
+                _allModItems.AddRange(modListView.Items.Cast<ListViewItem>());
             }
         }
 
@@ -2573,6 +2573,8 @@ namespace CrossworldsModManager
             modListView.Items.Clear();
             modListView.Items.AddRange(items);
             modListView.EndUpdate();
+            _allModItems.Clear();
+            _allModItems.AddRange(items);
             SaveModListState();
             UpdateStatus("Organized mods alphabetically.");
         }
@@ -2591,6 +2593,8 @@ namespace CrossworldsModManager
             {
                 modListView.Items.Insert(insertIndex++, item);
             }
+            _allModItems.Clear();
+            _allModItems.AddRange(modListView.Items.Cast<ListViewItem>());
             SaveModListState();
             UpdateStatus($"Moved {selected.Count} mod(s) to top.");
         }
@@ -2604,6 +2608,8 @@ namespace CrossworldsModManager
                 modListView.Items.Remove(item);
                 modListView.Items.Add(item);
             }
+            _allModItems.Clear();
+            _allModItems.AddRange(modListView.Items.Cast<ListViewItem>());
             SaveModListState();
             UpdateStatus($"Moved {selected.Count} mod(s) to bottom.");
         }
@@ -3505,11 +3511,8 @@ namespace CrossworldsModManager
 
         private void SyncModListAfterReorder()
         {
-            if (string.IsNullOrWhiteSpace(txtSearch.Text))
-            {
-                _allModItems.Clear();
-                _allModItems.AddRange(modListView.Items.Cast<ListViewItem>());
-            }
+            _allModItems.Clear();
+            _allModItems.AddRange(modListView.Items.Cast<ListViewItem>());
             SaveModListState();
         }
 

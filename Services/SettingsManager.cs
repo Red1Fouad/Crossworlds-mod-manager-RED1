@@ -8,6 +8,7 @@ namespace CrossworldsModManager
     {
         private static readonly string SettingsFilePath = PlatformUtils.GetSettingsFilePath();
         public static AppSettings Settings { get; private set; } = new AppSettings();
+        public static bool SettingsWereReset { get; private set; }
 
         public static void Load()
         {
@@ -20,8 +21,10 @@ namespace CrossworldsModManager
                 }
                 catch (JsonException)
                 {
-                    File.Delete(SettingsFilePath);
+                    var backupPath = SettingsFilePath + ".corrupted." + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".bak";
+                    try { File.Copy(SettingsFilePath, backupPath, true); } catch { }
                     Settings = new AppSettings();
+                    SettingsWereReset = true;
                 }
             }
         }
