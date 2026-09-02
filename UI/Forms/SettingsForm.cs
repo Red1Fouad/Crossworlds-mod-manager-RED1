@@ -32,35 +32,20 @@ namespace CrossworldsModManager
             }
 
             txtModsDir.Text = SettingsManager.Settings.ModsDirectory;
+            txtAesKey.Text = SettingsManager.Settings.GameAesKey;
             chkSortEnabled.Checked = SettingsManager.Settings.SortEnabledModsToTop;
             chkAutoClean.Checked = SettingsManager.Settings.AutoCleanTemporaryFiles;
             chkCheckForGames.Checked = SettingsManager.Settings.CheckForGamesOnStartup;
             chkAutoCloseLog.Checked = SettingsManager.Settings.AutoCloseLogOnSuccess;
             chkDeveloperMode.Checked = SettingsManager.Settings.DeveloperModeEnabled;
-            var doNotBackupChk = this.Controls.Find("chkDoNotBackup", true);
-            if (doNotBackupChk.Length > 0 && doNotBackupChk[0] is CheckBox chkBackup)
-            {
-                chkBackup.Checked = SettingsManager.Settings.DoNotBackupModsAutomatically;
-            }
-            var doNotConfirmChk = this.Controls.Find("chkDoNotConfirmEnableDisable", true);
-            if (doNotConfirmChk.Length > 0 && doNotConfirmChk[0] is CheckBox chkConfirm)
-            {
-                chkConfirm.Checked = SettingsManager.Settings.DoNotConfirmEnableDisable;
-            }
-            var doNotWarnChk = this.Controls.Find("chkDoNotWarnUnsavedChanges", true);
-            if (doNotWarnChk.Length > 0 && doNotWarnChk[0] is CheckBox chkWarn)
-            {
-                chkWarn.Checked = SettingsManager.Settings.DoNotWarnUnsavedChanges;
-            }
+            chkDoNotBackup.Checked = SettingsManager.Settings.DoNotBackupModsAutomatically;
+            chkDoNotConfirmEnableDisable.Checked = SettingsManager.Settings.DoNotConfirmEnableDisable;
+            chkDoNotWarnUnsavedChanges.Checked = SettingsManager.Settings.DoNotWarnUnsavedChanges;
 
-            var cmbThemeControl = this.Controls.Find("cmbTheme", true);
-            if (cmbThemeControl.Length > 0 && cmbThemeControl[0] is ComboBox cmbTheme)
-            {
-                cmbTheme.Items.Clear();
-                cmbTheme.Items.AddRange(ThemeManager.GetAvailableThemes().ToArray());
-                cmbTheme.SelectedItem = SettingsManager.Settings.SelectedTheme;
-                UpdateCustomizeButtonVisibility();
-            }
+            cmbTheme.Items.Clear();
+            cmbTheme.Items.AddRange(ThemeManager.GetAvailableThemes().ToArray());
+            cmbTheme.SelectedItem = SettingsManager.Settings.SelectedTheme;
+            UpdateCustomizeButtonVisibility();
 
             ThemeManager.ApplyTheme(this);
         }
@@ -164,29 +149,17 @@ namespace CrossworldsModManager
             }
 
             SettingsManager.Settings.ModsDirectory = txtModsDir.Text;
+            SettingsManager.Settings.GameAesKey = txtAesKey.Text;
             SettingsManager.Settings.SortEnabledModsToTop = chkSortEnabled.Checked;
             SettingsManager.Settings.AutoCleanTemporaryFiles = chkAutoClean.Checked;
             SettingsManager.Settings.CheckForGamesOnStartup = chkCheckForGames.Checked;
             SettingsManager.Settings.AutoCloseLogOnSuccess = chkAutoCloseLog.Checked;
             SettingsManager.Settings.DeveloperModeEnabled = chkDeveloperMode.Checked;
-            var doNotBackupChk2 = this.Controls.Find("chkDoNotBackup", true);
-            if (doNotBackupChk2.Length > 0 && doNotBackupChk2[0] is CheckBox chkBackup)
-            {
-                SettingsManager.Settings.DoNotBackupModsAutomatically = chkBackup.Checked;
-            }
-            var doNotConfirmChk2 = this.Controls.Find("chkDoNotConfirmEnableDisable", true);
-            if (doNotConfirmChk2.Length > 0 && doNotConfirmChk2[0] is CheckBox chkConfirm)
-            {
-                SettingsManager.Settings.DoNotConfirmEnableDisable = chkConfirm.Checked;
-            }
-            var doNotWarnChk2 = this.Controls.Find("chkDoNotWarnUnsavedChanges", true);
-            if (doNotWarnChk2.Length > 0 && doNotWarnChk2[0] is CheckBox chkWarn)
-            {
-                SettingsManager.Settings.DoNotWarnUnsavedChanges = chkWarn.Checked;
-            }
+            SettingsManager.Settings.DoNotBackupModsAutomatically = chkDoNotBackup.Checked;
+            SettingsManager.Settings.DoNotConfirmEnableDisable = chkDoNotConfirmEnableDisable.Checked;
+            SettingsManager.Settings.DoNotWarnUnsavedChanges = chkDoNotWarnUnsavedChanges.Checked;
 
-            var cmbThemeControl = this.Controls.Find("cmbTheme", true);
-            if (cmbThemeControl.Length > 0 && cmbThemeControl[0] is ComboBox cmbTheme && cmbTheme.SelectedItem != null)
+            if (cmbTheme.SelectedItem != null)
             {
                 SettingsManager.Settings.SelectedTheme = cmbTheme.SelectedItem.ToString() ?? "Default";
             }
@@ -202,13 +175,7 @@ namespace CrossworldsModManager
 
         private void UpdateCustomizeButtonVisibility()
         {
-            var cmbThemeControl = this.Controls.Find("cmbTheme", true);
-            var btnCustomizeControl = this.Controls.Find("btnCustomizeTheme", true);
-            if (cmbThemeControl.Length > 0 && cmbThemeControl[0] is ComboBox cmbTheme && 
-                btnCustomizeControl.Length > 0 && btnCustomizeControl[0] is Button btnCustomize)
-            {
-                btnCustomize.Visible = (cmbTheme.SelectedItem?.ToString() == "Custom");
-            }
+            btnCustomizeTheme.Visible = (cmbTheme.SelectedItem?.ToString() == "Custom");
         }
 
         private void btnCustomizeTheme_Click(object sender, EventArgs e)
