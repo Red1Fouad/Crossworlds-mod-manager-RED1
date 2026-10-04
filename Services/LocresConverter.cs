@@ -22,6 +22,7 @@ namespace CrossworldsModManager
             private const string LinuxToolUrl = "https://github.com/AntiApple4life/LocResUtility/releases/download/v2.1.0/LocResUtilityCli-v2.1.0-linux-x64.7z";
         #endif
         private static readonly string ToolsDir = PlatformUtils.GetToolsDir();
+        private static readonly string ToolsWorkDir = PlatformUtils.GetToolsWorkDir();
         private static readonly string ToolExePath = Path.Combine(ToolsDir, "LocResUtilityCli", PlatformUtils.IsLinux ? "LocResUtilityCli" : "LocResUtilityCli.exe");
 
         public static async Task ConvertToJsonAsync(string locresPath)
@@ -79,7 +80,7 @@ namespace CrossworldsModManager
                 string? exePath = await EnsureToolExistsAsync();
                 if (exePath == null) return;
 
-                var baseLocresPath = Path.Combine(ToolsDir, "Game.locres");
+                var baseLocresPath = Path.Combine(ToolsWorkDir, "Game.locres");
                 if (!File.Exists(baseLocresPath))
                 {
                     CustomMessageBox.Show($"Base file 'Game.locres' not found in the Tools folder.\nPlease place a clean copy of the game's .locres file there to use as a base for importing.",
@@ -169,7 +170,7 @@ namespace CrossworldsModManager
             if (exePath == null) return;
 
             // 3. Iterate through each language folder and process the locres file
-            var languagesRoot = Path.Combine(ToolsDir, "Locres", "UNION", "Content", "Localization", "Game");
+            var languagesRoot = Path.Combine(ToolsWorkDir, "Locres", "UNION", "Content", "Localization", "Game");
             if (!Directory.Exists(languagesRoot))
             {
                 var msg = $"Base locres directory not found at: {languagesRoot}";
@@ -313,7 +314,7 @@ namespace CrossworldsModManager
                     return;
                 }
 
-                var languagesRoot = Path.Combine(ToolsDir, "Locres", "UNION", "Content", "Localization", "Game");
+                var languagesRoot = Path.Combine(ToolsWorkDir, "Locres", "UNION", "Content", "Localization", "Game");
                 
                 var outputRoot = PlatformUtils.GetLocresModOutputRoot();
 
@@ -350,7 +351,7 @@ namespace CrossworldsModManager
                     var repakBinPath = Path.Combine(repakDir, PlatformUtils.IsLinux ? "repak" : "repak.exe");
                     if (File.Exists(repakBinPath))
                     {
-                        var locresModPath = PlatformUtils.IsAppImage ? Path.Combine(PlatformUtils.AppDataDataDir, "LocresMod") : Path.Combine(ToolsDir, "LocresMod");
+                        var locresModPath = Path.Combine(ToolsWorkDir, "LocresMod");
                         var outputPakPath = PlatformUtils.GetLocresModPakPath();
                         
                         var cmdArgs = $"pack \"{locresModPath}\"";
@@ -391,8 +392,8 @@ namespace CrossworldsModManager
 
             try
             {
-                Directory.CreateDirectory(ToolsDir);
-                var archivePath = Path.Combine(ToolsDir, "LocResUtility.7z");
+                Directory.CreateDirectory(ToolsWorkDir);
+                var archivePath = Path.Combine(ToolsWorkDir, "LocResUtility.7z");
 
                 using (var client = new HttpClient())
                 {
@@ -406,16 +407,20 @@ namespace CrossworldsModManager
 
                 using (var archive = SevenZipArchive.OpenArchive(archivePath))
                 {
-                    archive.WriteToDirectory(ToolsDir, new ExtractionOptions { ExtractFullPath = true, Overwrite = true });
+                    archive.WriteToDirectory(ToolsWorkDir, new ExtractionOptions { ExtractFullPath = true, Overwrite = true });
                 }
 
                 File.Delete(archivePath);
-                if (File.Exists(ToolExePath))
+
+                // On an AppImage the download lands in the writable app data dir rather than next to
+                // the bundled copy, so resolve the expected exe against the same directory.
+                var downloadedExePath = Path.Combine(ToolsWorkDir, "LocResUtilityCli", PlatformUtils.IsLinux ? "LocResUtilityCli" : "LocResUtilityCli.exe");
+                if (File.Exists(downloadedExePath))
                 {
                     if (PlatformUtils.IsLinux)
-                        File.SetUnixFileMode(ToolExePath, UnixFileMode.UserExecute);
+                        File.SetUnixFileMode(downloadedExePath, UnixFileMode.UserExecute);
                     CustomMessageBox.Show("LocResUtility downloaded and extracted successfully.", "Download Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return ToolExePath;
+                    return downloadedExePath;
                 }
                 throw new FileNotFoundException(PlatformUtils.IsLinux ? "Failed to find LocResUtility binary after extraction." : "Failed to find LocResUtility.exe after extraction.");
             }

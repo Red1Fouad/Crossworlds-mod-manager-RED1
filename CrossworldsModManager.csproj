@@ -6,6 +6,9 @@
       <Nullable>enable</Nullable>
       <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
       <AssemblyName>Bluestar Manager</AssemblyName>
+      <Version>1.1.6</Version>
+      <FileVersion>1.1.6.0</FileVersion>
+      <AssemblyVersion>1.1.6.0</AssemblyVersion>
       <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
@@ -24,7 +27,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="tools\**" CopyToOutputDirectory="PreserveNewest" />
+    <!--
+      tools\Locres and tools\LocresMod_Packed are generated at runtime (Save extracts the
+      game's .locres files with CUE4Parse and repacks them), so they are never shipped.
+      tools\UAssetAPI and tools\retoc are development-only and unreferenced by the app.
+      Excluding Locres also keeps the copyrighted game .locres assets out of releases.
+    -->
+    <None Include="tools\**"
+          Exclude="tools\UAssetAPI\**;tools\retoc\**;tools\Locres\**;tools\LocresMod_Packed\**"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <Target Name="EnsureToolsDir" AfterTargets="Build">

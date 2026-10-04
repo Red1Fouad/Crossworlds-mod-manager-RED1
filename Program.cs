@@ -16,7 +16,7 @@ namespace CrossworldsModManager
     static class Program
     {
         // Current application version.
-        public const string AppVersion = "1.1.5";
+        public const string AppVersion = "1.1.6";
 
         // Unique GUID for the application to identify the mutex and messages.
         private const string AppGuid = "c1a2b3d4-e5f6-7890-1234-567890abcdef"; // Please generate a new GUID for your app
@@ -316,9 +316,21 @@ namespace CrossworldsModManager
                     return;
                 }
 
-                // Normalize version strings (e.g., "v1.2.3" -> "1.2.3")
-                var latestVersion = new Version(latestVersionTag.TrimStart('v'));
-                var currentVersion = new Version(AppVersion);
+                // Normalize version strings (e.g., "v1.2.3" -> "1.2.3"). Prerelease/build metadata
+                // such as "v1.2.3-beta.1+build" is stripped because Version cannot parse it.
+                static string NormalizeVersionTag(string tag)
+                {
+                    var value = tag.Trim().TrimStart('v', 'V');
+                    var suffixIndex = value.IndexOfAny(new[] { '-', '+' });
+                    return suffixIndex >= 0 ? value.Substring(0, suffixIndex) : value;
+                }
+
+                if (!Version.TryParse(NormalizeVersionTag(latestVersionTag), out var latestVersion) ||
+                    !Version.TryParse(NormalizeVersionTag(AppVersion), out var currentVersion))
+                {
+                    Debug.WriteLine($"Could not parse version tag '{latestVersionTag}'. Skipping update check.");
+                    return;
+                }
 
                 if (latestVersion > currentVersion)
                 {
@@ -345,7 +357,7 @@ namespace CrossworldsModManager
 
             if (result != DialogResult.Yes) return;
 
-            string updaterPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "updater.exe");
+            string updaterPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Updater.exe");
             if (!File.Exists(updaterPath))
             {
                 CustomMessageBox.Show($"Updater executable not found at:\n{updaterPath}", "Update Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -576,7 +588,7 @@ namespace CrossworldsModManager
         }
 
         // Log file path for operations that may affect user data.
-        private static readonly string OperationLogPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "mod_ops.log");
+        private static readonly string OperationLogPath = PlatformUtils.GetOpsLogPath();
 
         private static void Log(string message)
         {

@@ -254,9 +254,42 @@ namespace CrossworldsModManager
                         if (Directory.Exists(toolsLocPath)) localizationPath = toolsLocPath;
                     }
 
+                    // 3. Nothing on disk yet, so pull the localization files straight out of the
+                    //    game archives with CUE4Parse instead of making the user press Save first.
                     if (string.IsNullOrEmpty(localizationPath))
                     {
-                        CustomMessageBox.Show("Could not find the game's localization folder.\n\nPlease ensure a game installation is selected or the 'Locres' folder exists in Tools.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        var extractGamePath = !string.IsNullOrEmpty(_selectedPlatform) && _gameInstallations.TryGetValue(_selectedPlatform, out var extractGameInfo)
+                            ? extractGameInfo.Path
+                            : SettingsManager.Settings.GameDirectory;
+
+                        if (!string.IsNullOrEmpty(extractGamePath) && Directory.Exists(extractGamePath))
+                        {
+                            var locresRoot = Path.Combine(workDir, "Locres");
+                            var extractedGamePath = Path.Combine(locresRoot, "UNION", "Content", "Localization", "Game");
+
+                            using (var progressForm = new ProgressForm("Extracting localization files from game..."))
+                            {
+                                progressForm.Shown += async (s, e) =>
+                                {
+                                    await Cue4ParseProvider.ExtractLocalizationAsync(extractGamePath, locresRoot, progressForm.GetLoggerProgress());
+                                    progressForm.UpdateProgress(100);
+                                    progressForm.ShowCompletion("Extraction complete.");
+                                };
+                                progressForm.ShowDialog(this);
+                            }
+
+                            if (Directory.Exists(extractedGamePath)) localizationPath = extractedGamePath;
+                        }
+                    }
+
+                    if (string.IsNullOrEmpty(localizationPath))
+                    {
+                        CustomMessageBox.Show(
+                            "Could not find the game's localization folder.\n\n" +
+                            "Please ensure a game installation is selected or the 'Locres' folder exists in Tools.\n\n" +
+                            $"Game folder : {(!string.IsNullOrEmpty(_selectedPlatform) && _gameInstallations.TryGetValue(_selectedPlatform, out var diagInfo) ? diagInfo.Path : "(none selected)")}\n" +
+                            $"Tools folder: {workDir}",
+                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
 
@@ -837,7 +870,7 @@ namespace CrossworldsModManager
                         : SettingsManager.Settings.GameDirectory;
                     if (!string.IsNullOrEmpty(extractGamePath))
                     {
-                        var locresOutput = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools", "Locres");
+                        var locresOutput = Path.Combine(PlatformUtils.GetToolsWorkDir(), "Locres");
                         await Cue4ParseProvider.ExtractLocalizationAsync(extractGamePath, locresOutput, progress);
                     }
 
@@ -955,7 +988,7 @@ namespace CrossworldsModManager
                 if (SettingsManager.Settings.AutoCleanTemporaryFiles)
                 {
                     // Cleanup the LocresMod folder from the Tools directory as it's no longer needed.
-                    var locresModTempPath = Path.Combine(PlatformUtils.GetToolsDir(), "LocresMod");
+                    var locresModTempPath = Path.Combine(PlatformUtils.GetToolsWorkDir(), "LocresMod");
                     if (Directory.Exists(locresModTempPath))
                     {
                         try { Directory.Delete(locresModTempPath, true); progress.Report($"Cleaned up temporary folder: {locresModTempPath}"); }
@@ -2251,6 +2284,147 @@ namespace CrossworldsModManager
                 }
                 UpdateStatus($"{successCount} of {filePaths.Length} mod(s) installed.");
                 RefreshModList();
+            }
+        }
+
+        private void newModToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(SettingsManager.Settings.ModsDirectory) || !Directory.Exists(SettingsManager.Settings.ModsDirectory))
+            {
+                CustomMessageBox.Show("The mods directory is not configured. Please set it in Settings before creating mods.", "Mods Directory Not Set", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string rawName = Prompt.ShowDialog("Enter a name for the new mod:", "New Mod");
+            if (string.IsNullOrWhiteSpace(rawName)) return;
+
+            string folderName = SanitizeModFolderName(rawName);
+            if (string.IsNullOrWhiteSpace(folderName))
+            {
+                CustomMessageBox.Show("That name does not contain any characters that are valid in a folder name.", "Invalid Name", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string author = Prompt.ShowDialog("Enter the mod author's name:", "New Mod", "Unknown Author");
+            if (string.IsNullOrWhiteSpace(author)) author = "Unknown Author";
+
+            var modsDirectory = SettingsManager.Settings.ModsDirectory;
+            string targetDir = Path.Combine(modsDirectory, folderName);
+
+            if (Directory.Exists(targetDir))
+            {
+                var existing = CustomMessageBox.Show($"A mod named '{folderName}' already exists. Creating it will overwrite the existing mod. Continue?", "Mod Exists", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (existing != DialogResult.Yes) return;
+            }
+
+            try
+            {
+                if (!SettingsManager.Settings.DoNotBackupModsAutomatically)
+                    ModBackupManager.BackupMods(modsDirectory);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to create backup before creating mod: {ex.Message}");
+            }
+
+            try
+            {
+                if (Directory.Exists(targetDir))
+                    Directory.Delete(targetDir, true);
+
+                Directory.CreateDirectory(targetDir);
+                File.WriteAllText(Path.Combine(targetDir, "mod.ini"), BuildNewModIni(rawName, author, folderName));
+                CreatePlaceholderThumbnail(Path.Combine(targetDir, "Thumb.png"));
+            }
+            catch (Exception ex)
+            {
+                CustomMessageBox.Show($"Failed to create mod '{folderName}':\n{ex.Message}", "Creation Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            RefreshModList();
+            UpdateStatus($"Created mod '{folderName}'.");
+        }
+
+        private static string SanitizeModFolderName(string name)
+        {
+            string invalidChars = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
+            foreach (char c in invalidChars)
+            {
+                name = name.Replace(c, '_');
+            }
+            return name.Trim(' ', '.');
+        }
+
+        /// <summary>
+        /// Builds the starter mod.ini for a newly created mod. Only [Main] is written as
+        /// active configuration; everything else is left commented out as a reference so
+        /// the manager still picks the mod up while the author fills in the details.
+        /// </summary>
+        private static string BuildNewModIni(string name, string author, string folderName)
+        {
+            // Values must stay on a single line or they would corrupt the ini.
+            name = name.Replace("\r", " ").Replace("\n", " ").Trim();
+            author = author.Replace("\r", " ").Replace("\n", " ").Trim();
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("; Blue Star Manager mod configuration.");
+            sb.AppendLine("; Only the values under [Main] are required. Uncomment the sections below as you need them.");
+            sb.AppendLine();
+            sb.AppendLine("[Main]");
+            sb.AppendLine($"Name = {name}");
+            sb.AppendLine($"Author = {author}");
+            sb.AppendLine("Version = 1.0");
+            sb.AppendLine($"Description = {name} by {author}.");
+            sb.AppendLine();
+            sb.AppendLine("; Uncomment for UE4SS logic mods.");
+            sb.AppendLine(";Type = LogicMod");
+            sb.AppendLine();
+            sb.AppendLine("; Configuration options. Each group becomes a 'Configure' button in the manager.");
+            sb.AppendLine("; Type is SelectOne (radio buttons) or SelectMultiple (checkboxes).");
+            sb.AppendLine(";");
+            sb.AppendLine(";[Config:Color]");
+            sb.AppendLine(";Type = SelectOne");
+            sb.AppendLine(";Description = Choose a color:");
+            sb.AppendLine(";Options = Red, Blue, Green");
+            sb.AppendLine();
+            sb.AppendLine("; Links options to the files they control. Paths are relative to this mod folder.");
+            sb.AppendLine("; Only the base path is needed; the manager resolves matching .pak/.ucas/.utoc files itself.");
+            sb.AppendLine(";");
+            sb.AppendLine(";[Files]");
+            sb.AppendLine(";Models/Classic = Color.Red");
+            sb.AppendLine();
+            sb.AppendLine("; For text changes with no options, drop a mod.json file next to this one.");
+            sb.AppendLine("; See the README for the mod.json format.");
+            sb.AppendLine();
+            sb.AppendLine("; Thumbnail: replace Thumb.png with your own image (Thumb.jpg also works).");
+            sb.AppendLine($"; This mod's folder is '{folderName}'. Add your asset files here.");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Writes a 16:9 placeholder thumbnail so a brand new mod shows something in the
+        /// details panel until the author supplies their own artwork.
+        /// </summary>
+        private static void CreatePlaceholderThumbnail(string path)
+        {
+            const int width = 640;
+            const int height = 360;
+
+            using (var bmp = new Bitmap(width, height))
+            {
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.Clear(ThemeManager.CurrentTheme.BackColor);
+                    using (var font = new Font((SystemFonts.MessageBoxFont ?? SystemFonts.DefaultFont).FontFamily, 20, FontStyle.Bold))
+                    using (var brush = new SolidBrush(ThemeManager.CurrentTheme.ForeColor))
+                    using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                    {
+                        g.DrawString("No Thumbnail", font, brush, new RectangleF(0, 0, width, height), format);
+                    }
+                }
+                bmp.Save(path, System.Drawing.Imaging.ImageFormat.Png);
             }
         }
 

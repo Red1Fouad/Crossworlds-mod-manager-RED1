@@ -46,9 +46,20 @@ namespace CrossworldsModManager
             return IsAppImage ? AppDataDataDir : AppDomain.CurrentDomain.BaseDirectory;
         }
 
+        // Files that ship inside the app (icon.png, Megaman image, Sound.jpg, LocResUtilityCli,
+        // repak, Oodle dlls). These must stay anchored to the base directory so they are found
+        // inside the AppImage mount.
         public static string GetToolsDir()
         {
             return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools");
+        }
+
+        // Writable counterpart to GetToolsDir() for anything the app generates (extracted
+        // .locres, downloaded helper tools, user-supplied base files). An AppImage base directory
+        // is a read-only mount, so generated data is redirected to the app data directory there.
+        public static string GetToolsWorkDir()
+        {
+            return IsAppImage ? AppDataDataDir : GetToolsDir();
         }
 
         public static string GetWorkDir()
@@ -94,6 +105,13 @@ namespace CrossworldsModManager
             return IsAppImage
                 ? Path.Combine(AppDataDir, "settings.json")
                 : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json");
+        }
+
+        public static string GetOpsLogPath()
+        {
+            return IsAppImage
+                ? Path.Combine(AppDataDir, "mod_ops.log")
+                : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "mod_ops.log");
         }
 
         public static void OpenFolderInExplorer(string path)

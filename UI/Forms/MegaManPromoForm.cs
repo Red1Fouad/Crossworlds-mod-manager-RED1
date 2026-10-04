@@ -1,7 +1,6 @@
 using System;
 using System.Drawing;
 using System.IO;
-using System.Net.Http;
 using System.Windows.Forms;
 
 namespace CrossworldsModManager
@@ -44,7 +43,7 @@ namespace CrossworldsModManager
             var pb = new PictureBox();
             pb.Dock = DockStyle.Fill;
             pb.SizeMode = PictureBoxSizeMode.Zoom;
-            LoadImageAsync(pb, "https://static.wikia.nocookie.net/vsdebating/images/a/ae/Megaman-PNG-HD.png?format=png");
+            LoadImage(pb, Path.Combine(PlatformUtils.GetToolsDir(), "Megaman-PNG-HD.png"));
             mainLayout.Controls.Add(pb, 0, 0);
 
             var lblMsg = new Label();
@@ -109,15 +108,15 @@ namespace CrossworldsModManager
             base.OnFormClosing(e);
         }
 
-        private async void LoadImageAsync(PictureBox pb, string url)
+        private static void LoadImage(PictureBox pb, string path)
         {
             try
             {
-                using (var client = new HttpClient())
+                if (!File.Exists(path)) return;
+                using (var ms = new MemoryStream(File.ReadAllBytes(path)))
+                using (var loaded = Image.FromStream(ms))
                 {
-                    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-                    var data = await client.GetByteArrayAsync(url);
-                    pb.Image = Image.FromStream(new MemoryStream(data));
+                    pb.Image = new Bitmap(loaded);
                 }
             }
             catch { /* Ignore image load errors */ }
