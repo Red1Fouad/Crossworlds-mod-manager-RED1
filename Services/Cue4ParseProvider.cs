@@ -52,7 +52,7 @@ namespace CrossworldsModManager
                 try
                 {
                     var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                    var oodleDll = Path.Combine(baseDir, "oodle-data-shared.dll");
+                    var oodleDll = PlatformUtils.IsWindows ? Path.Combine(baseDir, "oodle-data-shared.dll") : Path.Combine(baseDir, "liboodle-data-shared.so");
                     var oodleOld = Path.Combine(baseDir, "oo2core_9_win64.dll");
 
                     if (File.Exists(oodleOld))
