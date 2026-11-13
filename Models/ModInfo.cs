@@ -19,7 +19,7 @@ namespace CrossworldsModManager
 
         // New properties for multi-group configuration
         public List<ModConfigurationGroup> ConfigurationGroups { get; set; } = new();
-        public Dictionary<string, string> FileGroupMappings { get; set; } = new();
+        public Dictionary<string, List<string>> FileGroupMappings { get; set; } = new();
     }
 
     public class ModConfigurationGroup
