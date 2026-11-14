@@ -300,7 +300,7 @@ namespace CrossworldsModManager
                             continue;
                         }
 
-                        var parts = trim.Split(new[] { '=' }, 2);
+                        var parts = trim.Split(['=']);
                         if (parts.Length != 2) continue;
                         var key = parts[0].Trim();
                         var val = parts[1].Trim();
@@ -334,15 +334,23 @@ namespace CrossworldsModManager
                     foreach (var kvp in tempFiles)
                     {
                         var file = kvp.Key;
-                        var pointer = kvp.Value; // Group.Option
-                        
-                        // Find the group that matches the start of the pointer
-                        var group = _config.Groups.FirstOrDefault(g => pointer.StartsWith(g.Name + ".", StringComparison.OrdinalIgnoreCase));
-                        if (group != null)
+                        string pointer = kvp.Value; // Group.Option string list
+
+                        foreach (string groupOption in pointer.Split(",", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
                         {
-                            var optionName = pointer.Substring(group.Name.Length + 1);
-                            var opt = group.Options.FirstOrDefault(o => o.Name.Equals(optionName, StringComparison.OrdinalIgnoreCase));
-                            opt?.Files.Add(file);
+                            // Find all groups and options that match the start of the pointer
+                            foreach (var group in _config.Groups)
+                            {
+                                if (groupOption.StartsWith(group.Name + ".", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var groupOptionName = groupOption.Substring(group.Name.Length + 1);
+                                    foreach (var option in group.Options)
+                                    {
+                                        if (option.Name.Equals(groupOptionName, StringComparison.OrdinalIgnoreCase))
+                                            option?.Files.Add(file);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -702,23 +710,57 @@ namespace CrossworldsModManager
             }
 
             // [Files]
+
             sb.AppendLine("[Files]");
+
+            // Need to reorganize to fit the "file = name.option" order
+            Dictionary<string, List<string>> useFiles = [];
+
             foreach (var grp in _config.Groups)
             {
                 foreach (var opt in grp.Options)
                 {
+                    // Optimize groups of .pak/.ucas/.utoc files:
                     foreach (var file in opt.Files)
                     {
-                        sb.AppendLine($"{file}={grp.Name}.{opt.Name}");
+                        string ext = Path.GetExtension(file).ToLowerInvariant();
+                        if (ext == ".pak" || ext == ".ucas" || ext == ".utoc") {
+                            string fullPathWithoutExtension = Path.Combine(Path.GetDirectoryName(file) ?? string.Empty, Path.GetFileNameWithoutExtension(file));
+                            if (!useFiles.TryGetValue(fullPathWithoutExtension, out var currentList)){
+                                currentList = [];
+                                useFiles[fullPathWithoutExtension] = currentList;
+                            }
+            
+                            if (!currentList.Contains($"{grp.Name}.{opt.Name}"))
+                                currentList.Add($"{grp.Name}.{opt.Name}");
+                    
+                        } else { //And, if it's not .pak, .ucas or .utoc...
+                            if (!useFiles.TryGetValue(file, out var currentList)){
+                                currentList = [];
+                                useFiles[file] = currentList;
+                            }
+            
+                            if (!currentList.Contains($"{grp.Name}.{opt.Name}"))
+                                currentList.Add($"{grp.Name}.{opt.Name}");
+                        }
                     }
                 }
+            }
+
+            List<(string, List<string>)> useFilesList = useFiles.Select(kvp => (kvp.Key, kvp.Value)).ToList();
+
+            useFilesList.Sort((a, b) => a.Item1.CompareTo(b.Item1)); //Sort so it's printed, well, sorted.
+
+            foreach (var filePointer in useFilesList)
+            {
+                sb.AppendLine($"{filePointer.Item1}={string.Join(", ", filePointer.Item2)}");
             }
 
             if (!string.IsNullOrEmpty(_pendingThumbnailPath) && File.Exists(_pendingThumbnailPath))
             {
                 try
                 {
-                    string[] extensions = { ".jpg", ".png", ".jpeg", ".bmp", ".gif" };
+                    string[] extensions = [".jpg", ".png", ".jpeg", ".bmp", ".gif"];
                     foreach (var ext in extensions)
                     {
                         var p = Path.Combine(_modPath, "Thumb" + ext);

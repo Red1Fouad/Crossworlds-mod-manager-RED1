@@ -14,6 +14,7 @@ using NativeFileDialogs.AutoGen;
 using NativeFileDialogs.Net;
 using SharpCompress.Archives;
 using SharpCompress.Common;
+using SharpCompress.Compressors.ZStandard.Unsafe;
 
 namespace CrossworldsModManager
 {
@@ -626,56 +627,110 @@ namespace CrossworldsModManager
             }
 
             // Iterate through all possible files defined in the [Files] section.
+
             foreach (var fileMapping in modInfo.FileGroupMappings)
             {
                 try
                 {
-                var fileBase = fileMapping.Key;
-                // Fix for Linux: Normalize path separators to match the current OS
-                if (Path.DirectorySeparatorChar == '/')
-                {
-                    fileBase = fileBase.Replace('\\', '/');
-                }
-
-                if (!modInfo.FileGroupMappings.TryGetValue(fileMapping.Key, out var group) || group == null) continue;
-
-                // Correctly separate the directory and the base filename from the mod.ini entry.
-                string combinedPath = Path.Combine(modInfo.DirectoryPath, fileBase);
-                string? directory = Path.GetDirectoryName(combinedPath);
-                string baseName = Path.GetFileName(combinedPath);
-
-                if (string.IsNullOrEmpty(directory)) continue;
-                if (!Directory.Exists(directory)) continue;
-
-                // Find all related files (.pak, .utoc, .ucas, etc.)
-                var filesToProcess = Directory.GetFiles(Path.GetFullPath(directory), baseName + ".*");
-
-                foreach (var filePath in filesToProcess)
-                {
-                    // Ignore text-based config files
-                    string ext = Path.GetExtension(filePath).ToLowerInvariant();
-                    if (ext == ".ini" || ext == ".txt" || ext == ".md") continue;
-
-                    bool shouldBeEnabled = selectedOptionIdentifiers.Contains(group);
-                    string enabledPath = filePath.Replace(".disabled", "");
-                    string disabledPath = enabledPath + ".disabled";
-
-                    try
+                    var fileBase = fileMapping.Key;
+                    // Fix for Linux: Normalize path separators to match the current OS
+                    if (Path.DirectorySeparatorChar == '/')
                     {
-                        if (shouldBeEnabled && File.Exists(disabledPath))
-                        {
-                            File.Move(disabledPath, enabledPath);
+                        fileBase = fileBase.Replace('\\', '/');
+                    }
+
+                    if (!modInfo.FileGroupMappings.TryGetValue(fileMapping.Key, out var optionsAssociatedWithFile) || optionsAssociatedWithFile == null) continue;
+
+                    // Correctly separate the directory and the base filename from the mod.ini entry.
+                    string combinedPath = Path.Combine(modInfo.DirectoryPath, fileBase);
+                    string? directory = Path.GetDirectoryName(combinedPath);
+                    string baseName = Path.GetFileName(combinedPath);
+
+                    if (string.IsNullOrEmpty(directory)) continue;
+                    if (!Directory.Exists(directory)) continue;
+
+                    // Find all related files (.pak, .utoc, .ucas, etc.)
+                    var filesToProcess = Directory.GetFiles(Path.GetFullPath(directory), baseName + ".*");
+
+                    bool skipNext = false;
+                    var lastEnabled = false;
+                    string ext = "";
+                    for (int i = 0; i < filesToProcess.Length; i++)
+                    {
+                        string filePath = filesToProcess[i];
+
+                        string enabledPath = filePath.Replace(".disabled", "");
+                        string disabledPath = enabledPath + ".disabled";
+
+                        if (skipNext) //This setup skips the next file if it's a .pak, .ucas or .utoc file as long as the LAST file was either also skipped or a .pak, .ucas or .utoc file.
+                        {             //Note that this only works because we know that, in filesToProcess, all the files have the same directory path and baseName.
+                            try
+                            {
+                                if (lastEnabled && File.Exists(disabledPath))
+                                {
+                                    File.Move(disabledPath, enabledPath);
+                                }
+                                else if (!lastEnabled && File.Exists(enabledPath))
+                                {
+                                    File.Move(enabledPath, disabledPath);
+                                }
+
+                                if (i + 1 < filesToProcess.Length){
+                                    string next_ext = Path.GetExtension(filesToProcess[i + 1]).ToLowerInvariant();
+                                    if (next_ext == ".pak" || next_ext == ".ucas" || next_ext == ".utoc"){
+                                        ext = next_ext;
+                                        skipNext = true;
+                                    } else
+                                        skipNext = false;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                AppendLog($"Failed to apply option for '{baseName}': {ex.Message}");
+                            }
+
+                            continue;
                         }
-                        else if (!shouldBeEnabled && File.Exists(enabledPath))
+                        // Ignore text-based config files
+
+                        ext = Path.GetExtension(filePath).ToLowerInvariant();
+                        if (ext == ".ini" || ext == ".txt" || ext == ".md") continue;
+
+                        bool shouldBeEnabled = false;
+                        foreach (var option in optionsAssociatedWithFile) {
+                            shouldBeEnabled = selectedOptionIdentifiers.Contains(option);
+                            if (shouldBeEnabled)
+                                break;
+                        }
+
+                        try
                         {
-                            File.Move(enabledPath, disabledPath);
+                            if (shouldBeEnabled && File.Exists(disabledPath))
+                            {
+                                File.Move(disabledPath, enabledPath);
+                            }
+                            else if (!shouldBeEnabled && File.Exists(enabledPath))
+                            {
+                                File.Move(enabledPath, disabledPath);
+                            }
+
+                            if (ext == ".pak" || ext == ".ucas" || ext == ".utoc")
+                            {
+                                if (i + 1 < filesToProcess.Length){
+                                    string next_ext = Path.GetExtension(filesToProcess[i + 1]).ToLowerInvariant();
+                                    if (next_ext == ".pak" || next_ext == ".ucas" || next_ext == ".utoc") {
+                                        lastEnabled = shouldBeEnabled;
+                                        ext = next_ext;
+                                        skipNext = true;
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            AppendLog($"Failed to apply option for '{baseName}': {ex.Message}");
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        AppendLog($"Failed to apply option for '{baseName}': {ex.Message}");
-                    }
-                }
                 }
                 catch (Exception ex)
                 {
@@ -760,6 +815,7 @@ namespace CrossworldsModManager
                                     foreach (var option in options)
                                     {
                                         selectedOptionIdentifiers.Add($"{group.GroupName}.{option}");
+                                        // progress.Report($"{group.GroupName}.{option}");
                                     }
                                 }
                             }
@@ -1207,7 +1263,7 @@ namespace CrossworldsModManager
                     {
                         Name = mainSection.GetValueOrDefault("Name", modFolderName),
                         Author = mainSection.GetValueOrDefault("Author", "Unknown"),
-                        Version = mainSection.ContainsKey("Version") ? mainSection["Version"] : "-1",
+                        Version = mainSection.TryGetValue("Version", out string? value) ? value : "-1",
                         Description = mainSection.GetValueOrDefault("Description", "No description provided."),
                         DirectoryPath = modRoot,
                         IsLogicMod = mainSection.GetValueOrDefault("Type", "").Equals("LogicMod", StringComparison.OrdinalIgnoreCase)
@@ -1238,10 +1294,17 @@ namespace CrossworldsModManager
                         modInfo.ConfigurationGroups.Add(new ModConfigurationGroup(configKvp.Key, configKvp.Value));
                     }
 
-                    var filesKvp = iniSections.FirstOrDefault(s => s.Key.Equals("Files", StringComparison.OrdinalIgnoreCase));
-                    if (filesKvp.Value != null)
+                    var filesKvP = iniSections.FirstOrDefault(s => s.Key.Equals("Files", StringComparison.OrdinalIgnoreCase));
+
+                    if (filesKvP.Value != null)
                     {
-                        modInfo.FileGroupMappings = filesKvp.Value;
+                        var finalFilesKvP = new Dictionary<string, List<string>>();
+                        foreach (var dictVal in filesKvP.Value)
+                        {
+                            finalFilesKvP[dictVal.Key] = dictVal.Value.Split(",", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+                        }
+
+                        modInfo.FileGroupMappings = finalFilesKvP;
                     }
                 }
                 else
